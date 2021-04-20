@@ -1,0 +1,4 @@
+This is a document of ideas that might be worth keeping track of for when development of FEET begins.
+
+1. CPPN-like representation of fuzzy shapes
+2. Defuzzification output node
