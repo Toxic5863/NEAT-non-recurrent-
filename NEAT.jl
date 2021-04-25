@@ -35,9 +35,8 @@ is_active(x) = getfield(x, :activity) == true
 get_in(x) = getfield(x, :in)
 
 function propagate(x::genome, y::Array)
-    input_layer = filter(is_sensor, x.nodes)
+    # input_layer = filter(is_sensor, x.nodes)
     active_connections = filter(is_active, x.connections)
-    node_outputs = zeros(Float64, length(active_connections))
     sorted_active_connections = sort(active_connections, by=get_in)
 end
 
