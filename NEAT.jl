@@ -79,7 +79,9 @@ function evaluate_row(x, y, z)
     else
         input_sum = 0
         for a in 1:length(y[x, :])
-            input_sum += evaluate_connection(y[x, a], a, y, z)
+            if isa(y[x, a], Number)
+                input_sum += sigmoid(y[x a] * evaluate_row(a, y, z))
+            end
         end
         return input_sum
     end
@@ -120,9 +122,28 @@ function add_node(x::genome, i::Int)
 end
 
 # the innovation count i must be set equal to the output of mutations
-function add_edge(i)
+function add_edge(x::genome, i::Int, y)
+    non_recurrent_direction_found = false
+    
+    # searching for a pair of nodes s.t. a cycle is not created
+    while non_recurrent_direction_found == false
+        start_node = rand(1:length(x.nodes))
+        end_node = rand(1:length(x.nodes))
+        if !check_for_recurrent_connection(start_node, end_node, x)
+            non_recurrent_direction_found = true
+        end
+    end
+    
+    # creating the directed edge and adding it to the genome
+    new_connection = connection_gene(start_node, end_node, 1, true, i)
+    x.connections = hcat(x.connections, new_connection)
+    return i
 end
 
+# checks if node y is directly or indirectly an input for node x via adjacency matrix y
+function check_for_recurrent_connection(node_x, node_y, y)
+    return true
+end
 
 i = 1
 # sample genome and inputs for debugging
