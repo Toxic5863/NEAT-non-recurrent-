@@ -106,6 +106,7 @@ function add_node(x::genome, i::Int)
     x.connections[target_connection_index].activity = false
     edge_out = x.connections[target_connection_index].out
     edge_in = x.connections[target_connection_index].in
+    edge_weight = x.connections[target_connection_index].weight
 
     new_node = node_gene(node_count, 'H', i)
     x.nodes = hcat(x.nodes, new_node)
@@ -113,7 +114,7 @@ function add_node(x::genome, i::Int)
     new_connection = connection_gene(edge_in, node_count, 1, true, i)
     x.connections = hcat(x.connections, new_connection)
 
-    new_connection = connection_gene(node_count, edge_out, 1, true, i)
+    new_connection = connection_gene(node_count, edge_out, edge_weight, true, i)
     x.connections = hcat(x.connections, new_connection)
     return i
 end
