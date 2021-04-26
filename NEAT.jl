@@ -33,30 +33,36 @@ function sigmoid(x)
     return 1 / (1 + ℯ^-x)
 end
 
-function propagate(x::genome, y::Array)
-    # the output node must be deteremined to be used as the starting point
-    # for evaluating the output of the phenotype in a top-down manner
-    output_node_number = filter(is_output, x.nodes)[1].number
-
+function construct_network(x::genome)
     # using a directed adjacency matrix to model the phenotype
     # weighted edge i to j is represented as matrix[j, i] = weight
     node_count = length(x.nodes)
     weighted_adjacency_matrix = Array{Any}(undef, node_count, node_count)
 
     # setting the default entry to "e" for empty. this way, if an edge's
-    # weight is not a number, we know to ignore it
+    # weight is not a number, we know to ignore it.
     fill!(weighted_adjacency_matrix, 'e')
 
     # populating the adjacency matrix with weights
     for a in x.connections
         weighted_adjacency_matrix[a.out, a.in] = a.weight
     end
+    
+    return weighted_adjacency_matrix
+end
 
+function propagate(x::genome, y::Array)
+    phenotype = construct_network(x)
+    
+    # the output node must be deteremined to be used as the starting point
+    # for evaluating the output of the phenotype in a top-down manner
+    output_node_number = filter(is_output, x.nodes)[1].number
+    
     # using top-down recursion to navigate the adjacency matrix
     # start at output node and navigate backwards along all edges with weights
     # until leaf nodes are arrived at. if leaves are sensor nodes, they return
     # the value of their corresponding inputs
-    network_output = calculate_output(output_node_number, weighted_adjacency_matrix, y)
+    network_output = calculate_output(output_node_number, phenotype, y)
 end
 
 # w = weight of edge, x = origin vertex of edge, y = graph, z = inputs
@@ -122,16 +128,16 @@ function add_node(x::genome, i::Int)
 end
 
 # the innovation count i must be set equal to the output of mutations
-function add_edge(x::genome, i::Int, y)
+function add_edge(x::genome, i::Int)
+    x_graphed = construct_network(x)
     non_recurrent_direction_found = false
     
-    # searching for a pair of nodes s.t. a cycle is not created
-    while non_recurrent_direction_found == false
+    # searching for a pair of nodes s.t. a cycle is not created via an edge between them
+    start_node = rand(1:length(x.nodes))
+    end_node = rand(1:length(x.nodes))
+    while check_for_recurrent_connection(start_node, end_node, x_graphed)
         start_node = rand(1:length(x.nodes))
         end_node = rand(1:length(x.nodes))
-        if !check_for_recurrent_connection(start_node, end_node, x)
-            non_recurrent_direction_found = true
-        end
     end
     
     # creating the directed edge and adding it to the genome
