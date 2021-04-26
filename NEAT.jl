@@ -145,6 +145,11 @@ function check_for_recurrent_connection(node_x, node_y, y)
     return true
 end
 
+function modify_weights(x::genome)
+    target_connection_index = rand(1:length(x.connections))
+    x.connections[target_connection_index].weight *= rand(-3:3)
+end
+
 i = 1
 # sample genome and inputs for debugging
 nodes = [node_gene(1, 'S', i) node_gene(2, 'H', i) node_gene(3, 'H', i) node_gene(4, 'O', i)]
