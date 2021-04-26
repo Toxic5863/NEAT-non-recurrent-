@@ -148,7 +148,18 @@ end
 
 # checks if node y is directly or indirectly an input for node x via adjacency matrix y
 function check_for_recurrent_connection(node_x, node_y, y)
-    return true
+    if node_y in y[x, :]
+        return true
+    elseif sum(isnumber.(y[x, :])) == 0
+        return false
+    else
+        for a in 1:length(y[x, :])
+            if check_for_recurrent_connection(a, node_y, y)
+                return true
+            end
+        end
+        return false
+    end
 end
 
 function modify_weights(x::genome)
