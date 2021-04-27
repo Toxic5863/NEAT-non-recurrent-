@@ -47,17 +47,17 @@ function construct_network(x::genome)
     for a in x.connections
         weighted_adjacency_matrix[a.out, a.in] = a.weight
     end
-    
+
     return weighted_adjacency_matrix
 end
 
 function propagate(x::genome, y::Array)
     phenotype = construct_network(x)
-    
+
     # the output node must be deteremined to be used as the starting point
     # for evaluating the output of the phenotype in a top-down manner
     output_node_number = filter(is_output, x.nodes)[1].number
-    
+
     # using top-down recursion to navigate the adjacency matrix
     # start at output node and navigate backwards along all edges with weights
     # until leaf nodes are arrived at. if leaves are sensor nodes, they return
@@ -66,13 +66,13 @@ function propagate(x::genome, y::Array)
 end
 
 # w = weight of edge, x = origin vertex of edge, y = graph, z = inputs
-function evaluate_connection(w, x, y, z)
-    if isa(w, Number)
-        return sigmoid(w * evaluate_row(x, y, z))
-    else
-        return 0
-    end
-end
+# function evaluate_connection(w, x, y, z)
+#     if isa(w, Number)
+#         return sigmoid(w * evaluate_row(x, y, z))
+#     else
+#         return 0
+#     end
+# end
 
 # x = node number, y = adjacency matrix, z = inputs
 function evaluate_row(x, y, z)
@@ -86,7 +86,7 @@ function evaluate_row(x, y, z)
         input_sum = 0
         for a in 1:length(y[x, :])
             if isa(y[x, a], Number)
-                input_sum += sigmoid(y[x a] * evaluate_row(a, y, z))
+                input_sum += sigmoid(y[x, a] * evaluate_row(a, y, z))
             end
         end
         return input_sum
@@ -105,6 +105,7 @@ function add_node(x::genome, i::Int)
     while found_active_connection == false
         if x.connections[target_connection_index].activity == true
             found_active_connection = true
+        else
             target_connection_index = rand(1:length(x.connections))
         end
     end
@@ -117,13 +118,13 @@ function add_node(x::genome, i::Int)
     edge_weight = x.connections[target_connection_index].weight
 
     new_node = node_gene(node_count, 'H', i)
-    x.nodes = hcat(x.nodes, new_node)
+    x.nodes = vcat(x.nodes, new_node)
 
     new_connection = connection_gene(edge_in, node_count, 1, true, i)
-    x.connections = hcat(x.connections, new_connection)
+    x.connections = vcat(x.connections, new_connection)
 
     new_connection = connection_gene(node_count, edge_out, edge_weight, true, i)
-    x.connections = hcat(x.connections, new_connection)
+    x.connections = vcat(x.connections, new_connection)
     return i
 end
 
@@ -131,7 +132,7 @@ end
 function add_edge(x::genome, i::Int)
     x_graphed = construct_network(x)
     non_recurrent_direction_found = false
-    
+
     # searching for a pair of nodes s.t. a cycle is not created via an edge between them
     start_node = rand(1:length(x.nodes))
     end_node = rand(1:length(x.nodes))
@@ -139,10 +140,10 @@ function add_edge(x::genome, i::Int)
         start_node = rand(1:length(x.nodes))
         end_node = rand(1:length(x.nodes))
     end
-    
+
     # creating the directed edge and adding it to the genome
     new_connection = connection_gene(start_node, end_node, 1, true, i)
-    x.connections = hcat(x.connections, new_connection)
+    x.connections = vcat(x.connections, new_connection)
     return i
 end
 
@@ -167,10 +168,25 @@ function modify_weights(x::genome)
     x.connections[target_connection_index].weight *= rand(-3:3)
 end
 
+# x = inputs
+function generate_network(x::Array)
+    nodes = Array{node_gene}(undef, length(x)+1)
+    connections = Array{connection_gene}(undef, length(x))
+    for a in 1:length(x)
+        nodes[a] = node_gene(a, 'S', a)
+    end
+    output_node_number = length(nodes)
+    nodes[output_node_number] = node_gene(output_node_number, 'O', output_node_number)
+    for a in 1:length(x)
+        connections[a] = connection_gene(a, output_node_number, 1, true, a)
+    end
+    return genome(nodes, connections)
+end
+
 i = 1
 # sample genome and inputs for debugging
-nodes = [node_gene(1, 'S', i) node_gene(2, 'H', i) node_gene(3, 'H', i) node_gene(4, 'O', i)]
-connections = [connection_gene(1, 2, 1, true, 1) connection_gene(2, 3, 1, true, 2) connection_gene(3, 4, 1, true, 3)]
-a = genome(nodes, connections)
-input = [1]
+# nodes = [node_gene(1, 'S', i) node_gene(2, 'H', i) node_gene(3, 'H', i) node_gene(4, 'O', i)]
+# connections = [connection_gene(1, 2, 1, true, 1) connection_gene(2, 3, 1, true, 2) connection_gene(3, 4, 1, true, 3)]
+# a = genome(nodes, connections)
+# input = [1]
 # node 4 = w*sigmoid(sum(w*sigmoid()))
