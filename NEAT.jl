@@ -166,27 +166,6 @@ function add_edge(x::genome, i::Int)
     return i
 end
 
-#
-# function inherit_edge(x::genome, i::Int, z::connection_gene)
-#     if z.in in x.nodes
-#         if z.out in x.nodes
-#             x_graphed = construct_network(x)
-#             if check_for_recurrent_connection(start_node, end_node, x_garphed)
-#                 push!(x.connections, z)
-#                 return true
-#             end
-#         end
-#     end
-#     return false
-# end
-
-
-# function inherit_node(x::genome, i::Int, z::node_gene)
-#     if inherit_edge(z.in)
-#     push!(x.nodes, z)
-#     inherit_edge
-#
-
 
 # checks if node y is directly or indirectly an input for node x via adjacency matrix y
 function check_for_recurrent_connection(node_x, node_y, y)
@@ -297,22 +276,61 @@ function get_genetic_range(x::genome)
 end
 
 
-function compatability(x::genome, y::genome)
+function get_genetic_size(x::genome)
+    return +(length(x.nodes), length(x.connections))
+end
 
-    σ = "f"
+
+function compatibility(x::genome, y::genome)
+    x_genetic_range, y_genetic_range = get_genetic_range(x), get_genetic_range(y)
+    E = 0
+    D = 0
+    W = Float64[]
+    x_genes = union(get_historical_marker.(x.nodes), get_historical_marker.(x.connections))
+    y_genes = union(get_historical_marker.(y.nodes), get_historical_marker.(y.connections))
+    for a ∈ x_genes
+        if a ∉ y_genes
+            if a > maximum(y_genes)
+                E += 1
+            else
+                D += 1
+            end
+        end
+    end
+    for a ∈ y_genes
+        if a ∉ x_genes
+            if a > maximum(x_genes)
+                E += 1
+            else
+                D += 1
+            end
+        end
+    end
+    for a ∈ intersect(get_historical_marker.(x.connections), get_historical_marker.(y.connections))
+        for b ∈ y.connections
+            if b.innovation_number == a
+                for c ∈ x.connections
+                    if c.innovation_number == a
+                        push!(W, abs(b.weight - c.weight))
+                    end
+                end
+            end
+        end
+    end
+
+    W̅ = sum(W) / length(W)
+    c₁ = 1
+    c₂ = 1
+    c₃ = 1
+    x_size, y_size = get_genetic_size(x), get_genetic_size(y)
+    N = max(x_size, y_size)
+    σ = ((c₁ * D + c₂ * E) / N) + c₃ + W̅
+    return σ
 end
 
 
 function crossover(x::genome, y::genome, inputs::Array, outputs::Array)
-    # x_disjoint_genes = Int[]
-    # x_excess_genes = Int[]
-    # y_disjoint_genes = Int[]
-    # y_excess_genes = Int[]
-    # matching_genes = Int[]
-    # x_genetic_range = get_genetic_range(x)
-    # y_genetic_range = get_genetic_range(y)
-    # child_nodes = node_gene[]
-    # child_connections = connection_gene[]
+    matching_genes = Int[]
 
     if fitness(x, inputs, outputs) > fitness(y, inputs, outputs)
         more_fit_parent = x
@@ -332,7 +350,7 @@ function crossover(x::genome, y::genome, inputs::Array, outputs::Array)
         end
     end
 
-    child_genome = copy(more_fit_parent)
+    child_genome = deepcopy(more_fit_parent)
 
     for a in child_genome.connections
         if a.innovation_number in matching_genes
