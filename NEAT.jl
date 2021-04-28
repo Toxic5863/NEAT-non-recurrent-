@@ -5,12 +5,15 @@ is_sensor(x) = getfield(x, :class) == 'S'
 is_output(x) = getfield(x, :class) == 'O'
 get_in(x) = getfield(x, :in)
 is_active(x) = getfield(x, :activity) == true
+get_historical_marker(x) = getfield(x, :innovation_number)
+
 
 mutable struct node_gene
     number::Int
     class::Char
     innovation_number::Int
 end
+
 
 mutable struct connection_gene
     in::Int
@@ -20,18 +23,22 @@ mutable struct connection_gene
     innovation_number::Int
 end
 
+
 mutable struct genome
     nodes::Array
     connections::Array
 end
 
+
 function encode(x::Array, y::Array)
     return genome(x, y)
 end
 
+
 function sigmoid(x)
     return 1 / (1 + ℯ^-x)
 end
+
 
 function construct_network(x::genome)
     # using a directed adjacency matrix to model the phenotype
@@ -51,6 +58,7 @@ function construct_network(x::genome)
     return weighted_adjacency_matrix
 end
 
+
 function propagate(x::genome, y::Array)
     phenotype = construct_network(x)
 
@@ -65,14 +73,6 @@ function propagate(x::genome, y::Array)
     network_output = calculate_output(output_node_number, phenotype, y)
 end
 
-# w = weight of edge, x = origin vertex of edge, y = graph, z = inputs
-# function evaluate_connection(w, x, y, z)
-#     if isa(w, Number)
-#         return sigmoid(w * evaluate_row(x, y, z))
-#     else
-#         return 0
-#     end
-# end
 
 # x = node number, y = adjacency matrix, z = inputs
 function evaluate_row(x, y, z)
@@ -93,10 +93,12 @@ function evaluate_row(x, y, z)
     end
 end
 
+
 # x = node number, y = adjacency matrix, z = inputs
 function calculate_output(x, y, z)
     return sigmoid(evaluate_row(x, y, z))
 end
+
 
 # the innovation count i must be set equal to the output of mutations
 function add_node(x::genome, i::Int)
@@ -117,29 +119,36 @@ function add_node(x::genome, i::Int)
     edge_in = x.connections[target_connection_index].in
     edge_weight = x.connections[target_connection_index].weight
 
+    i += 1
     new_node = node_gene(node_count, 'H', i)
     x.nodes = vcat(x.nodes, new_node)
 
+    i += 1
     new_connection = connection_gene(edge_in, node_count, 1, true, i)
     x.connections = vcat(x.connections, new_connection)
 
+    i += 1
     new_connection = connection_gene(node_count, edge_out, edge_weight, true, i)
     x.connections = vcat(x.connections, new_connection)
+
+    return i
 end
+
 
 function make_node_pair(x::genome)
     start_node = 0
     end_node = 0
     while start_node == end_node
-        print("redoing it")
         start_node = rand(1:length(x.nodes))
         end_node = rand(1:length(x.nodes))
     end
     return start_node, end_node
 end
 
+
 # the innovation count i must be set equal to the output of mutations
 function add_edge(x::genome, i::Int)
+    i += 1
     x_graphed = construct_network(x)
     non_recurrent_direction_found = false
 
@@ -150,13 +159,37 @@ function add_edge(x::genome, i::Int)
     end
 
     # creating the directed edge and adding it to the genome
-    new_connection = connection_gene(start_node, end_node, 1, true, i)
+    new_weight = rand() * rand(-8:8)
+    new_connection = connection_gene(start_node, end_node, new_weight, true, i)
     x.connections = vcat(x.connections, new_connection)
+
+    return i
 end
+
+#
+# function inherit_edge(x::genome, i::Int, z::connection_gene)
+#     if z.in in x.nodes
+#         if z.out in x.nodes
+#             x_graphed = construct_network(x)
+#             if check_for_recurrent_connection(start_node, end_node, x_garphed)
+#                 push!(x.connections, z)
+#                 return true
+#             end
+#         end
+#     end
+#     return false
+# end
+
+
+# function inherit_node(x::genome, i::Int, z::node_gene)
+#     if inherit_edge(z.in)
+#     push!(x.nodes, z)
+#     inherit_edge
+#
+
 
 # checks if node y is directly or indirectly an input for node x via adjacency matrix y
 function check_for_recurrent_connection(node_x, node_y, y)
-    print(y[node_x, :])
     if isnumber(y[node_x, node_y])
         return true
     else
@@ -171,10 +204,13 @@ function check_for_recurrent_connection(node_x, node_y, y)
     return false
 end
 
+
 function modify_weights(x::genome)
     target_connection_index = rand(1:length(x.connections))
-    x.connections[target_connection_index].weight *= rand(-3:3)
+    modifier = rand(-6:6) * rand()
+    x.connections[target_connection_index].weight *= modifier
 end
+
 
 # x = inputs
 function generate_network(input_size::Int)
@@ -191,9 +227,11 @@ function generate_network(input_size::Int)
     return genome(nodes, connections)
 end
 
+
 function make_initial_population(population_size::Int, input_size::Int)
     return [generate_network(input_size) for a in 1:population_size]
 end
+
 
 function fitness(x::genome, inputs::Array, outputs::Array)
     error = Array{Float64}(undef, length(outputs))
@@ -203,6 +241,7 @@ function fitness(x::genome, inputs::Array, outputs::Array)
     error = abs.(error)
     return sum(error)/length(error)
 end
+
 
 function selection(population::Array, inputs::Array, outputs::Array)
     roulette_wheel = Array{Float64}(undef, length(population))
@@ -228,37 +267,102 @@ function selection(population::Array, inputs::Array, outputs::Array)
     return(parents)
 end
 
-function mutation(parents::Array, inputs::Array, outputs::Array, i::Int)
+
+function mutate(parents::Array, i::Int)
     mutation_chance = rand()
     for a in parents
         if mutation_chance > 0.1
-            i += 1
             mutation_choice = rand()
             if mutation_choice <= 0.6
                 modify_weights(a)
             elseif mutation_choice <= 0.8
-                add_node(a, i)
+                i = add_node(a, i)
             else
-                add_edge(a, i)
+                i = add_edge(a, i)
             end
         end
     end
     return i
 end
 
+
+function get_genetic_range(x::genome)
+    x_nodes_historical_min = minimum(get_historical_marker.(x.nodes))
+    x_nodes_historical_max = maximum(get_historical_marker.(x.nodes))
+    x_connections_historical_min = minimum(get_historical_marker.(x.connections))
+    x_connections_historical_max = maximum(get_historical_marker.(x.connections))
+    x_historical_minimum = minimum([x_nodes_historical_min x_connections_historical_min])
+    x_historical_maximum = maximum([x_nodes_historical_max x_connections_historical_max])
+    return x_historical_maximum - x_historical_minimum
+end
+
+
 function compatability(x::genome, y::genome)
+
     σ = "f"
 end
+
+
+function crossover(x::genome, y::genome, inputs::Array, outputs::Array)
+    # x_disjoint_genes = Int[]
+    # x_excess_genes = Int[]
+    # y_disjoint_genes = Int[]
+    # y_excess_genes = Int[]
+    # matching_genes = Int[]
+    # x_genetic_range = get_genetic_range(x)
+    # y_genetic_range = get_genetic_range(y)
+    # child_nodes = node_gene[]
+    # child_connections = connection_gene[]
+
+    if fitness(x, inputs, outputs) > fitness(y, inputs, outputs)
+        more_fit_parent = x
+        less_fit_parent = y
+    else
+        more_fit_parent = y
+        less_fit_parent = x
+    end
+
+    for a in x.nodes
+        x_innovation_number = getfield(a, :innovation_number)
+        for b in y.nodes
+            y_innovation_number = getfield(b, :innovation_number)
+            if x_innovation_number == y_innovation_number
+                push!(matching_genes, x_innovation_number)
+            end
+        end
+    end
+
+    child_genome = copy(more_fit_parent)
+
+    for a in child_genome.connections
+        if a.innovation_number in matching_genes
+            if rand(0:1) > 0
+                donor = more_fit_parent
+            else
+                donor = less_fit_parent
+            end
+            for b in donor.connections
+                if a.innovation_number == b.innovation_number
+                    a.weight = b.weight
+                end
+            end
+        end
+    end
+
+    return child_genome
+end
+
 
 inputs = [0 0; 0 1; 1 0; 1 1]
 outputs = [0; 1; 1; 0]
 
+
 function NEAT(inputs::Array, outputs::Array)
-    i = 1
     input_size = length(inputs[1])
     population = make_initial_population(100, input_size)
+    i = input_size + 1
     parents = selection(population, inputs, outputs)
-    parents = mutation(parents, inputs, outputs, i)
+    i = mutation(parents, inputs, outputs, i)
 end
 
 # sample genome and inputs for debugging
@@ -267,3 +371,8 @@ end
 # a = genome(nodes, connections)
 # input = [1]
 # node 4 = w*sigmoid(sum(w*sigmoid()))
+
+
+function test_crossover()
+
+end
