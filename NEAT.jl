@@ -128,17 +128,27 @@ function add_node(x::genome, i::Int)
     return i
 end
 
+function make_node_pair(x::genome)
+    start_node = 0
+    end_node = 0
+    while start_node == end_node
+        print("redoing it")
+        start_node = rand(1:length(x.nodes))
+        end_node = rand(1:length(x.nodes))
+    end
+    return start_node, end_node
+end
+
+
 # the innovation count i must be set equal to the output of mutations
 function add_edge(x::genome, i::Int)
     x_graphed = construct_network(x)
     non_recurrent_direction_found = false
 
+    start_node, end_node = make_node_pair(x)
     # searching for a pair of nodes s.t. a cycle is not created via an edge between them
-    start_node = rand(1:length(x.nodes))
-    end_node = rand(1:length(x.nodes))
     while check_for_recurrent_connection(start_node, end_node, x_graphed)
-        start_node = rand(1:length(x.nodes))
-        end_node = rand(1:length(x.nodes))
+        start_node, end_node = make_node_pair(x)
     end
 
     # creating the directed edge and adding it to the genome
@@ -149,18 +159,19 @@ end
 
 # checks if node y is directly or indirectly an input for node x via adjacency matrix y
 function check_for_recurrent_connection(node_x, node_y, y)
-    if node_y in y[x, :]
+    print(y[node_x, :])
+    if isnumber(y[node_x, node_y])
         return true
-    elseif sum(isnumber.(y[x, :])) == 0
-        return false
     else
-        for a in 1:length(y[x, :])
-            if check_for_recurrent_connection(a, node_y, y)
-                return true
+        for a in 1:length(y[node_x, :])
+            if isnumber(y[node_x, a])
+                if check_for_recurrent_connection(a, node_y, y)
+                    return true
+                end
             end
         end
-        return false
     end
+    return false
 end
 
 function modify_weights(x::genome)
@@ -169,21 +180,88 @@ function modify_weights(x::genome)
 end
 
 # x = inputs
-function generate_network(x::Array)
-    nodes = Array{node_gene}(undef, length(x)+1)
-    connections = Array{connection_gene}(undef, length(x))
-    for a in 1:length(x)
+function generate_network(input_size::Int)
+    nodes = Array{node_gene}(undef, input_size+1)
+    connections = Array{connection_gene}(undef, input_size)
+    for a in 1:input_size
         nodes[a] = node_gene(a, 'S', a)
     end
     output_node_number = length(nodes)
     nodes[output_node_number] = node_gene(output_node_number, 'O', output_node_number)
-    for a in 1:length(x)
+    for a in 1:input_size
         connections[a] = connection_gene(a, output_node_number, 1, true, a)
     end
     return genome(nodes, connections)
 end
 
-i = 1
+function make_initial_population(population_size::Int, input_size::Int)
+    return [generate_network(input_size) for a in 1:population_size]
+end
+
+function fitness(x::genome, inputs::Array, outputs::Array)
+    error = Array{Float64}(undef, length(outputs))
+    for a in 1:length(outputs)
+        error[a] = outputs[a] - propagate(x, inputs[a, :])
+    end
+    error = abs.(error)
+    return sum(error)/length(error)
+end
+
+function selection(population::Array, inputs::Array, outputs::Array)
+    roulette_wheel = Array{Float64}(undef, length(population))
+    for a in 1:length(population)
+        roulette_wheel[a] = fitness(population[a], inputs, outputs)
+    end
+    roulette_wheel = roulette_wheel ./ sum(roulette_wheel)
+    parents = Array{genome}(undef, 2)
+    parent_seed = rand()
+    for a in 1:length(roulette_wheel)
+        parent_seed -= roulette_wheel[a]
+        if parent_seed <= 0
+            parents[1] = population[a]
+        end
+    end
+    parent_seed = rand()
+    for a in 1:length(roulette_wheel)
+        parent_seed -= roulette_wheel[a]
+        if parent_seed <= 0
+            parents[2] = population[a]
+        end
+    end
+    return(parents)
+end
+
+function mutation(parents::Array, inputs::Array, outputs::Array, i::Int)
+    mutation_chance = rand()
+    for a in parents
+        if mutation_chance > 0.1
+            mutation_choice = rand()
+            if mutation_choice <= 0.6
+                modify_weights(a)
+            elseif mutation_choice <= 0.8
+                add_node(a, i)
+            else
+                add_edge(a, i)
+            end
+        end
+    end
+end
+
+function compatability(x::genome, y::genome)
+    σ = "f"
+end
+
+inputs = [0 0; 0 1; 1 0; 1 1]
+outputs = [0; 1; 1; 0]
+
+function NEAT(inputs::Array, outputs::Array)
+    i = 1
+    input_size = length(inputs[1])
+    population = make_initial_population(100, input_size)
+    parents = selection(population, inputs, outputs)
+    parents = mutation(parents, inputs, outputs, i)
+end
+
 # sample genome and inputs for debugging
 # nodes = [node_gene(1, 'S', i) node_gene(2, 'H', i) node_gene(3, 'H', i) node_gene(4, 'O', i)]
 # connections = [connection_gene(1, 2, 1, true, 1) connection_gene(2, 3, 1, true, 2) connection_gene(3, 4, 1, true, 3)]
