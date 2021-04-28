@@ -125,7 +125,6 @@ function add_node(x::genome, i::Int)
 
     new_connection = connection_gene(node_count, edge_out, edge_weight, true, i)
     x.connections = vcat(x.connections, new_connection)
-    return i
 end
 
 function make_node_pair(x::genome)
@@ -138,7 +137,6 @@ function make_node_pair(x::genome)
     end
     return start_node, end_node
 end
-
 
 # the innovation count i must be set equal to the output of mutations
 function add_edge(x::genome, i::Int)
@@ -154,7 +152,6 @@ function add_edge(x::genome, i::Int)
     # creating the directed edge and adding it to the genome
     new_connection = connection_gene(start_node, end_node, 1, true, i)
     x.connections = vcat(x.connections, new_connection)
-    return i
 end
 
 # checks if node y is directly or indirectly an input for node x via adjacency matrix y
@@ -235,6 +232,7 @@ function mutation(parents::Array, inputs::Array, outputs::Array, i::Int)
     mutation_chance = rand()
     for a in parents
         if mutation_chance > 0.1
+            i += 1
             mutation_choice = rand()
             if mutation_choice <= 0.6
                 modify_weights(a)
@@ -245,6 +243,7 @@ function mutation(parents::Array, inputs::Array, outputs::Array, i::Int)
             end
         end
     end
+    return i
 end
 
 function compatability(x::genome, y::genome)
