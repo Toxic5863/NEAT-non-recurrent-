@@ -94,7 +94,7 @@ end
 
 # x = node number, y = adjacency matrix, z = inputs
 function calculate_output(x, y, z)
-    if sigmoid(evaluate_row(x, y, z)) >= 0.5
+    if evaluate_row(x, y, z) >= 0.5
         return true
     else
         return false
@@ -188,7 +188,7 @@ end
 
 function modify_weights(x::genome)
     target_connection_index = rand(1:length(x.connections))
-    modifier = rand(-6:6) * rand()
+    modifier = rand(-2:2) * rand()
     x.connections[target_connection_index].weight *= modifier
 end
 
@@ -216,7 +216,7 @@ end
 
 function mutate(a::genome, i::Int)
     mutation_chance = rand()
-    if mutation_chance > 0.9
+    if mutation_chance > 0.7
         mutation_choice = rand()
         if mutation_choice <= 0.95
             modify_weights(a)
@@ -337,8 +337,10 @@ end
 
 
 function f1score(x::genome, inputs::Array, outputs::Array)
-    true_positives, false_positives = 0, 0
-    true_negatives, false_negatives = 0, 0
+    true_positives = 0
+    false_positives = 0
+    true_negatives = 0
+    false_negatives = 0
     for input in 1:size(inputs)[1]
         if outputs[input, 1]
             if propagate(x, inputs[input, :])
@@ -357,7 +359,7 @@ function f1score(x::genome, inputs::Array, outputs::Array)
     precision = true_positives / (true_positives + false_positives)
     recall = true_positives / (true_positives + false_negatives)
     f1 = 2 * ((precision * recall) / (precision + recall))
-    println("inptus: ", inputs, " outputs: ", outputs, " f1: ", f1)
+    # println("genome: ", x, " inputs: ", inputs, " outputs: ", outputs, " f1: ", f1)
     return f1
 end
 
@@ -372,6 +374,7 @@ function fitness(x::Array, inputs::Array, outputs::Array)
             push!(species_errors, f1score(x[species][genome], inputs, outputs))
         end
         push!(errors, species_errors)
+        # print(species_errors)
     end
     return errors, solution_found, solution
 end
@@ -432,9 +435,11 @@ function evolve(speciated_genomes::Array, compatibility_threshold::Float64, targ
     for a in speciated_genomes
         push!(species_representatives, a[rand(1:length(a))])
     end
+    # println("unspeciating!")
     unspeciated_genomes = genome[]
     for a in speciated_genomes
         for b in a
+            # println("pushing ", b)
             push!(unspeciated_genomes, b)
         end
     end
@@ -467,17 +472,18 @@ outputs = [false; true; true; false]
 
 
 function NEAT(inputs::Array, outputs::Array)
-    σₜ = 1.6
+    σₜ = 1000000.6
     solution = generate_network(1)
     maximum_generations = 5000
     target_conditions = [false, false]
     # target conditions: minimum accuracy, maximum generations
 
     input_size = length(inputs[1])
-    population = make_initial_population(30, input_size)
+    population = make_initial_population(200, input_size)
     i = input_size + 1
     while true ∉ target_conditions
         new_population, maximum_generations, i, solution = evolve(population, σₜ, target_conditions, maximum_generations, inputs, outputs, i)
+        # print("population: ", length(new_population))
     end
 
     # println("finished with ", maximum_generations, " generations left")
