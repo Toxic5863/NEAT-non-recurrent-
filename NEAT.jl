@@ -1,5 +1,3 @@
-import LinearAlgebra
-
 isnumber(x) = isa(x, Number)
 is_sensor(x) = getfield(x, :class) == 'S'
 is_output(x) = getfield(x, :class) == 'O'
@@ -96,7 +94,11 @@ end
 
 # x = node number, y = adjacency matrix, z = inputs
 function calculate_output(x, y, z)
-    return sigmoid(evaluate_row(x, y, z))
+    if sigmoid(evaluate_row(x, y, z)) >= 0.5
+        return true
+    else
+        return false
+    end
 end
 
 
@@ -208,57 +210,20 @@ end
 
 
 function make_initial_population(population_size::Int, input_size::Int)
-    return [generate_network(input_size) for a in 1:population_size]
+    return [[generate_network(input_size) for a in 1:population_size]]
 end
 
 
-function fitness(x::genome, inputs::Array, outputs::Array)
-    error = Array{Float64}(undef, length(outputs))
-    for a in 1:length(outputs)
-        error[a] = outputs[a] - propagate(x, inputs[a, :])
-    end
-    error = abs.(error)
-    return sum(error)/length(error)
-end
-
-
-function selection(population::Array, inputs::Array, outputs::Array)
-    roulette_wheel = Array{Float64}(undef, length(population))
-    for a in 1:length(population)
-        roulette_wheel[a] = fitness(population[a], inputs, outputs)
-    end
-    roulette_wheel = roulette_wheel ./ sum(roulette_wheel)
-    parents = Array{genome}(undef, 2)
-    parent_seed = rand()
-    for a in 1:length(roulette_wheel)
-        parent_seed -= roulette_wheel[a]
-        if parent_seed <= 0
-            parents[1] = population[a]
-        end
-    end
-    parent_seed = rand()
-    for a in 1:length(roulette_wheel)
-        parent_seed -= roulette_wheel[a]
-        if parent_seed <= 0
-            parents[2] = population[a]
-        end
-    end
-    return(parents)
-end
-
-
-function mutate(parents::Array, i::Int)
+function mutate(a::genome, i::Int)
     mutation_chance = rand()
-    for a in parents
-        if mutation_chance > 0.1
-            mutation_choice = rand()
-            if mutation_choice <= 0.6
-                modify_weights(a)
-            elseif mutation_choice <= 0.8
-                i = add_node(a, i)
-            else
-                i = add_edge(a, i)
-            end
+    if mutation_chance > 0.9
+        mutation_choice = rand()
+        if mutation_choice <= 0.95
+            modify_weights(a)
+        elseif mutation_choice <= 0.975
+            i = add_node(a, i)
+        else
+            i = add_edge(a, i)
         end
     end
     return i
@@ -329,10 +294,10 @@ function compatibility(x::genome, y::genome)
 end
 
 
-function crossover(x::genome, y::genome, inputs::Array, outputs::Array)
+function crossover(x::genome, y::genome, x_fitness::Float64, y_fitness::Float64)
     matching_genes = Int[]
 
-    if fitness(x, inputs, outputs) > fitness(y, inputs, outputs)
+    if  x_fitness > y_fitness
         more_fit_parent = x
         less_fit_parent = y
     else
@@ -371,26 +336,151 @@ function crossover(x::genome, y::genome, inputs::Array, outputs::Array)
 end
 
 
+function f1score(x::genome, inputs::Array, outputs::Array)
+    true_positives, false_positives = 0, 0
+    true_negatives, false_negatives = 0, 0
+    for input in 1:size(inputs)[1]
+        if outputs[input, 1]
+            if propagate(x, inputs[input, :])
+                true_positives += 1
+            else
+                false_negatives += 1
+            end
+        else
+            if propagate(x, inputs[input, :])
+                false_positives += 1
+            else
+                true_negatives += 1
+            end
+        end
+    end
+    precision = true_positives / (true_positives + false_positives)
+    recall = true_positives / (true_positives + false_negatives)
+    f1 = 2 * ((precision * recall) / (precision + recall))
+    println("inptus: ", inputs, " outputs: ", outputs, " f1: ", f1)
+    return f1
+end
+
+
+function fitness(x::Array, inputs::Array, outputs::Array)
+    solution_found = false
+    solution = generate_network(1)
+    errors = Any[]
+    for species in 1:length(x)
+        species_errors = Float64[]
+        for genome in 1:length(x[species])
+            push!(species_errors, f1score(x[species][genome], inputs, outputs))
+        end
+        push!(errors, species_errors)
+    end
+    return errors, solution_found, solution
+end
+
+
+function evolve_niche(niche::Array, errors::Array, i)
+    roulette_wheel = errors
+    roulette_wheel = roulette_wheel ./ sum(roulette_wheel)
+    spin = rand()
+    land = Int
+    for a in 1:length(roulette_wheel)
+        spin -= roulette_wheel[a]
+        if spin <= 0
+            land = a
+        end
+    end
+    parent_1_index = land
+
+    roulette_wheel = errors
+    roulette_wheel = roulette_wheel ./ sum(roulette_wheel)
+    spin = rand()
+    land = Int
+    for a in 1:length(roulette_wheel)
+        spin -= roulette_wheel[a]
+        if spin <= 0
+            land = a
+        end
+    end
+    parent_2_index = land
+
+    child = crossover(niche[parent_1_index], niche[parent_2_index], errors[parent_1_index], errors[parent_2_index])
+
+    for a in niche
+        i = mutate(a, i)
+    end
+
+    child_placement = rand(1:length(niche))
+    niche[child_placement] = child
+    return i
+end
+
+# the species are represented as an array of arrays
+# for determining compatibility, each species is represented by a random member
+function evolve(speciated_genomes::Array, compatibility_threshold::Float64, target_conditions::Array, generations_left::Int, inputs::Array, outputs::Array, i)
+    generations_left -= 1
+    println("Generations left: ", generations_left)
+
+    errors, solution_found, solution = fitness(speciated_genomes, inputs, outputs)
+    for niche in 1:length(speciated_genomes)
+        i = evolve_niche(speciated_genomes[niche], errors[niche], i)
+    end
+    if generations_left == 0
+        target_conditions[2] = true
+    end
+
+    # re-speciation
+    species_representatives = genome[]
+    for a in speciated_genomes
+        push!(species_representatives, a[rand(1:length(a))])
+    end
+    unspeciated_genomes = genome[]
+    for a in speciated_genomes
+        for b in a
+            push!(unspeciated_genomes, b)
+        end
+    end
+    next_generation = Any[]
+    for a in species_representatives
+        push!(next_generation, [a])
+    end
+    for a in unspeciated_genomes
+        niche_found = false
+        for b in next_generation
+            species_representative = b[1]
+            if compatibility(a, species_representative) < compatibility_threshold
+                push!(b, a)
+                niche_found = true
+            end
+        end
+        if !niche_found
+            push!(next_generation, [a])
+        end
+    end
+    if solution_found
+        target_conditions[1] = true
+    end
+    return next_generation, generations_left, i, solution
+end
+
+
 inputs = [0 0; 0 1; 1 0; 1 1]
-outputs = [0; 1; 1; 0]
+outputs = [false; true; true; false]
 
 
 function NEAT(inputs::Array, outputs::Array)
+    σₜ = 1.6
+    solution = generate_network(1)
+    maximum_generations = 5000
+    target_conditions = [false, false]
+    # target conditions: minimum accuracy, maximum generations
+
     input_size = length(inputs[1])
-    population = make_initial_population(100, input_size)
+    population = make_initial_population(30, input_size)
     i = input_size + 1
-    parents = selection(population, inputs, outputs)
-    i = mutation(parents, inputs, outputs, i)
-end
+    while true ∉ target_conditions
+        new_population, maximum_generations, i, solution = evolve(population, σₜ, target_conditions, maximum_generations, inputs, outputs, i)
+    end
 
-# sample genome and inputs for debugging
-# nodes = [node_gene(1, 'S', i) node_gene(2, 'H', i) node_gene(3, 'H', i) node_gene(4, 'O', i)]
-# connections = [connection_gene(1, 2, 1, true, 1) connection_gene(2, 3, 1, true, 2) connection_gene(3, 4, 1, true, 3)]
-# a = genome(nodes, connections)
-# input = [1]
-# node 4 = w*sigmoid(sum(w*sigmoid()))
-
-
-function test_crossover()
-
+    # println("finished with ", maximum_generations, " generations left")
+    println(solution)
+    print(propagate(solution, inputs[3, :]))
 end
